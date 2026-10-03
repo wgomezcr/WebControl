@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/WebControl.Agent.Windows/WebControl.Agent.Windows.csproj" />
+    <Project Path="src/WebControl.Core/WebControl.Core.csproj" />
+    <Project Path="src/WebControl.Proxy/WebControl.Proxy.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/WebControl.Tests/WebControl.Tests.csproj" />
+  </Folder>
+</Solution>
