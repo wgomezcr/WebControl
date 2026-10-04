@@ -1,4 +1,7 @@
-﻿using System.Net;
+﻿using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication;
+using System.Security.Claims;
+using System.Net;
 using Microsoft.Data.Sqlite;
 using WebControl.Agent.Windows.Configuration;
 using WebControl.Agent.Windows.Persistence;
@@ -11,6 +14,76 @@ using WebControl.Proxy.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddRazorPages();
+builder.Services
+    .AddAuthentication(
+        CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(
+        options =>
+        {
+            options.Cookie.Name =
+                "WebControl.Auth";
+
+            options.Cookie.HttpOnly =
+                true;
+
+            options.Cookie.SameSite =
+                SameSiteMode.Strict;
+
+            options.Cookie.SecurePolicy =
+                CookieSecurePolicy.SameAsRequest;
+
+            options.ExpireTimeSpan =
+                TimeSpan.FromHours(12);
+
+            options.SlidingExpiration =
+                true;
+
+            options.LoginPath =
+                "/login";
+
+            options.Events =
+                new CookieAuthenticationEvents
+                {
+                    OnRedirectToLogin =
+                        context =>
+                        {
+                            if (context.Request.Path
+                                .StartsWithSegments("/api"))
+                            {
+                                context.Response.StatusCode =
+                                    StatusCodes.Status401Unauthorized;
+
+                                return Task.CompletedTask;
+                            }
+
+                            context.Response.Redirect(
+                                context.RedirectUri);
+
+                            return Task.CompletedTask;
+                        },
+
+                    OnRedirectToAccessDenied =
+                        context =>
+                        {
+                            if (context.Request.Path
+                                .StartsWithSegments("/api"))
+                            {
+                                context.Response.StatusCode =
+                                    StatusCodes.Status403Forbidden;
+
+                                return Task.CompletedTask;
+                            }
+
+                            context.Response.Redirect(
+                                context.RedirectUri);
+
+                            return Task.CompletedTask;
+                        }
+                };
+        });
+
+builder.Services.AddAuthorization();
+
 
 //
 // ============================================================
@@ -118,6 +191,7 @@ if (!app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseRouting();
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapStaticAssets();
@@ -131,6 +205,120 @@ app.MapRazorPages()
 // ============================================================
 //
 
+//
+// ============================================================
+// API - AUTENTICACION
+// ============================================================
+//
+
+app.MapPost(
+    "/api/auth/login",
+    async (
+        LoginRequest request,
+        HttpContext httpContext,
+        AdminCredentialService credentialService,
+        CancellationToken cancellationToken
+    ) =>
+    {
+        var valid =
+            await credentialService.ValidateAsync(
+                request.Username,
+                request.Password,
+                cancellationToken);
+
+        if (!valid)
+        {
+            return Results.Unauthorized();
+        }
+
+        var claims =
+            new[]
+            {
+                new Claim(
+                    ClaimTypes.Name,
+                    request.Username.Trim()),
+
+                new Claim(
+                    ClaimTypes.Role,
+                    "Administrator")
+            };
+
+        var identity =
+            new ClaimsIdentity(
+                claims,
+                CookieAuthenticationDefaults.AuthenticationScheme);
+
+        var principal =
+            new ClaimsPrincipal(
+                identity);
+
+        var properties =
+            new AuthenticationProperties
+            {
+                IsPersistent =
+                    request.RememberMe
+            };
+
+        if (request.RememberMe)
+        {
+            properties.ExpiresUtc =
+                DateTimeOffset.UtcNow
+                    .AddDays(30);
+        }
+
+        await httpContext.SignInAsync(
+            CookieAuthenticationDefaults.AuthenticationScheme,
+            principal,
+            properties);
+
+        return Results.Ok(
+            new
+            {
+                authenticated = true,
+                username =
+                    request.Username.Trim(),
+                rememberMe =
+                    request.RememberMe
+            });
+    });
+
+app.MapPost(
+    "/api/auth/logout",
+    async (
+        HttpContext httpContext
+    ) =>
+    {
+        await httpContext.SignOutAsync(
+            CookieAuthenticationDefaults.AuthenticationScheme);
+
+        return Results.Ok(
+            new
+            {
+                authenticated = false
+            });
+    });
+
+app.MapGet(
+    "/api/auth/me",
+    (
+        HttpContext httpContext
+    ) =>
+    {
+        if (httpContext.User.Identity?.IsAuthenticated
+            != true)
+        {
+            return Results.Unauthorized();
+        }
+
+        return Results.Ok(
+            new
+            {
+                authenticated = true,
+                username =
+                    httpContext.User.Identity.Name
+            });
+    })
+    .RequireAuthorization();
 //
 // ============================================================
 // API - CONFIGURACION INICIAL ADMIN
@@ -506,3 +694,10 @@ internal sealed record TemporaryGrantRequest(
 internal sealed record InitialAdminRequest(
     string Username,
     string Password);
+
+
+internal sealed record LoginRequest(
+    string Username,
+    string Password,
+    bool RememberMe);
+
