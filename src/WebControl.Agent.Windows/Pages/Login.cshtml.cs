@@ -13,11 +13,14 @@ namespace WebControl.Agent.Windows.Pages;
 public sealed class LoginModel : PageModel
 {
     private readonly AdminCredentialService _credentialService;
+    private readonly AdminSessionService _sessionService;
 
     public LoginModel(
-        AdminCredentialService credentialService)
+        AdminCredentialService credentialService,
+        AdminSessionService sessionService)
     {
         _credentialService = credentialService;
+        _sessionService = sessionService;
     }
 
     [BindProperty]
@@ -58,6 +61,19 @@ public sealed class LoginModel : PageModel
             return Page();
         }
 
+        var credentialStamp =
+            await _sessionService.GetCredentialStampAsync(
+                Input.Username,
+                cancellationToken);
+
+        if (credentialStamp is null)
+        {
+            ErrorMessage =
+                "No fue posible crear la sesión.";
+
+            return Page();
+        }
+
         var claims =
             new[]
             {
@@ -67,7 +83,11 @@ public sealed class LoginModel : PageModel
 
                 new Claim(
                     ClaimTypes.Role,
-                    "Administrator")
+                    "Administrator"),
+
+                new Claim(
+                    AdminSessionService.CredentialStampClaimType,
+                    credentialStamp)
             };
 
         var identity =

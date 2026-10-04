@@ -45,6 +45,55 @@ builder.Services
             options.Events =
                 new CookieAuthenticationEvents
                 {
+                    OnValidatePrincipal =
+                        async context =>
+                        {
+                            var username =
+                                context.Principal?
+                                    .Identity?
+                                    .Name;
+
+                            var credentialStamp =
+                                context.Principal?
+                                    .FindFirst(
+                                        AdminSessionService
+                                            .CredentialStampClaimType)?
+                                    .Value;
+
+                            if (string.IsNullOrWhiteSpace(username))
+                            {
+                                context.RejectPrincipal();
+
+                                await context.HttpContext.SignOutAsync(
+                                    CookieAuthenticationDefaults
+                                        .AuthenticationScheme);
+
+                                return;
+                            }
+
+                            var sessionService =
+                                context.HttpContext
+                                    .RequestServices
+                                    .GetRequiredService<AdminSessionService>();
+
+                            var valid =
+                                await sessionService
+                                    .IsCredentialStampValidAsync(
+                                        username,
+                                        credentialStamp,
+                                        context.HttpContext
+                                            .RequestAborted);
+
+                            if (!valid)
+                            {
+                                context.RejectPrincipal();
+
+                                await context.HttpContext.SignOutAsync(
+                                    CookieAuthenticationDefaults
+                                        .AuthenticationScheme);
+                            }
+                        },
+
                     OnRedirectToLogin =
                         context =>
                         {
@@ -111,6 +160,8 @@ builder.Services.AddSingleton<AdminUserRepository>();
 builder.Services.AddSingleton<RecoveryCredentialRepository>();
 builder.Services.AddSingleton<AdminCredentialService>();
 builder.Services.AddSingleton<RecoveryCredentialService>();
+builder.Services.AddSingleton<PasswordRecoveryService>();
+builder.Services.AddSingleton<AdminSessionService>();
 builder.Services.AddSingleton<ServiceControlService>();
 
 //
@@ -228,6 +279,7 @@ app.MapPost(
         LoginRequest request,
         HttpContext httpContext,
         AdminCredentialService credentialService,
+        AdminSessionService sessionService,
         CancellationToken cancellationToken
     ) =>
     {
@@ -242,6 +294,16 @@ app.MapPost(
             return Results.Unauthorized();
         }
 
+        var credentialStamp =
+            await sessionService.GetCredentialStampAsync(
+                request.Username,
+                cancellationToken);
+
+        if (credentialStamp is null)
+        {
+            return Results.Unauthorized();
+        }
+
         var claims =
             new[]
             {
@@ -251,7 +313,11 @@ app.MapPost(
 
                 new Claim(
                     ClaimTypes.Role,
-                    "Administrator")
+                    "Administrator"),
+
+                new Claim(
+                    AdminSessionService.CredentialStampClaimType,
+                    credentialStamp)
             };
 
         var identity =
@@ -291,6 +357,53 @@ app.MapPost(
                 rememberMe =
                     request.RememberMe
             });
+    })
+    .AllowAnonymous();
+app.MapPost(
+    "/api/auth/recovery/reset",
+    async (
+        RecoveryResetRequest request,
+        PasswordRecoveryService recoveryService,
+        CancellationToken cancellationToken
+    ) =>
+    {
+        try
+        {
+            var result =
+                await recoveryService.ResetAsync(
+                    request.Username,
+                    request.RecoveryCode,
+                    request.NewPassword,
+                    cancellationToken);
+
+            if (!result.Success)
+            {
+                return Results.BadRequest(
+                    new
+                    {
+                        error =
+                            "The recovery information is invalid."
+                    });
+            }
+
+            return Results.Ok(
+                new
+                {
+                    passwordChanged = true,
+
+                    newRecoveryCode =
+                        result.NewRecoveryCode
+                });
+        }
+        catch (ArgumentException exception)
+        {
+            return Results.BadRequest(
+                new
+                {
+                    error =
+                        exception.Message
+                });
+        }
     })
     .AllowAnonymous();
 app.MapPost(
@@ -389,6 +502,7 @@ app.MapPost(
         HttpContext httpContext,
         AdminUserRepository adminRepository,
         AdminCredentialService credentialService,
+        AdminSessionService sessionService,
         CancellationToken cancellationToken
     ) =>
     {
@@ -761,4 +875,10 @@ internal sealed record LoginRequest(
 
 
 
+
+
+internal sealed record RecoveryResetRequest(
+    string Username,
+    string RecoveryCode,
+    string NewPassword);
 

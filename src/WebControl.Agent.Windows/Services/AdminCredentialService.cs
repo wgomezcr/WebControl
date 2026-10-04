@@ -6,8 +6,9 @@ namespace WebControl.Agent.Windows.Services;
 public sealed class AdminCredentialService
 {
     private readonly AdminUserRepository _repository;
-    private readonly PasswordHasher<AdminPasswordSubject> _passwordHasher =
-        new();
+
+    private readonly PasswordHasher<AdminPasswordSubject>
+        _passwordHasher = new();
 
     public AdminCredentialService(
         AdminUserRepository repository)
@@ -94,6 +95,30 @@ public sealed class AdminCredentialService
         }
 
         return true;
+    }
+
+    public async Task ResetPasswordAsync(
+        long userId,
+        string username,
+        string newPassword,
+        CancellationToken cancellationToken = default)
+    {
+        ValidatePassword(
+            newPassword);
+
+        var subject =
+            new AdminPasswordSubject(
+                username.Trim());
+
+        var passwordHash =
+            _passwordHasher.HashPassword(
+                subject,
+                newPassword);
+
+        await _repository.UpdatePasswordHashAsync(
+            userId,
+            passwordHash,
+            cancellationToken);
     }
 
     private static void ValidatePassword(
