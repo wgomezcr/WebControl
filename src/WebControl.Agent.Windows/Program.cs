@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authentication.Cookies;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication;
 using System.Security.Claims;
 using System.Net;
@@ -82,7 +83,14 @@ builder.Services
                 };
         });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(
+    options =>
+    {
+        options.FallbackPolicy =
+            new AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser()
+                .Build();
+    });
 
 
 //
@@ -194,7 +202,8 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapStaticAssets();
+app.MapStaticAssets()
+    .AllowAnonymous();
 
 app.MapRazorPages()
     .WithStaticAssets();
@@ -280,8 +289,8 @@ app.MapPost(
                 rememberMe =
                     request.RememberMe
             });
-    });
-
+    })
+    .AllowAnonymous();
 app.MapPost(
     "/api/auth/logout",
     async (
@@ -394,8 +403,8 @@ app.MapPost(
                         exception.Message
                 });
         }
-    });
-//
+    })
+    .AllowAnonymous();
 // ============================================================
 // API - DISPOSITIVO
 // ============================================================
@@ -700,4 +709,7 @@ internal sealed record LoginRequest(
     string Username,
     string Password,
     bool RememberMe);
+
+
+
 
