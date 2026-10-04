@@ -24,6 +24,7 @@ builder.Services.Configure<WebControlDbOptions>(
 builder.Services.AddSingleton<WebControlDatabase>();
 builder.Services.AddSingleton<WebControlStateRepository>();
 builder.Services.AddSingleton<WebControlAuditRepository>();
+builder.Services.AddSingleton<DeviceIdentityRepository>();
 builder.Services.AddSingleton<ServiceControlService>();
 
 //
@@ -34,6 +35,9 @@ builder.Services.AddSingleton<ServiceControlService>();
 //
 builder.Services.AddHostedService<
     DatabaseInitializationHostedService>();
+
+builder.Services.AddHostedService<
+    DeviceIdentityInitializationHostedService>();
 
 builder.Services.AddHostedService<
     StateInitializationHostedService>();
@@ -124,6 +128,52 @@ app.MapRazorPages()
 // ============================================================
 //
 
+//
+// ============================================================
+// API - DISPOSITIVO
+// ============================================================
+//
+
+app.MapGet(
+    "/api/device",
+    async (
+        DeviceIdentityRepository deviceRepository,
+        CancellationToken cancellationToken
+    ) =>
+    {
+        var device =
+            await deviceRepository.GetOrCreateAsync(
+                cancellationToken);
+
+        var agentVersion =
+            typeof(DeviceIdentityRecord)
+                .Assembly
+                .GetName()
+                .Version?
+                .ToString()
+            ?? "unknown";
+
+        return Results.Ok(
+            new
+            {
+                deviceId =
+                    device.DeviceId,
+
+                machineName =
+                    device.MachineName,
+
+                displayName =
+                    device.DisplayName,
+
+                platform =
+                    device.Platform,
+
+                installedAtUtc =
+                    device.InstalledAtUtc,
+
+                agentVersion
+            });
+    });
 app.MapGet(
     "/api/services/youtube",
     (RuleEngine ruleEngine) =>
@@ -368,5 +418,6 @@ app.Run();
 
 internal sealed record TemporaryGrantRequest(
     int Minutes);
+
 
 

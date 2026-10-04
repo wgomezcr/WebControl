@@ -66,6 +66,25 @@ public sealed class WebControlDatabase
         await ExecuteAsync(
             connection,
             """
+            CREATE TABLE IF NOT EXISTS Device
+            (
+                Id              INTEGER NOT NULL
+                                PRIMARY KEY
+                                CHECK (Id = 1),
+
+                DeviceId        TEXT NOT NULL UNIQUE,
+                MachineName     TEXT NOT NULL,
+                DisplayName     TEXT NOT NULL,
+                Platform        TEXT NOT NULL,
+                InstalledAtUtc  TEXT NOT NULL,
+                UpdatedAtUtc    TEXT NOT NULL
+            );
+            """,
+            cancellationToken);
+
+        await ExecuteAsync(
+            connection,
+            """
             CREATE TABLE IF NOT EXISTS ServiceState
             (
                 ServiceId       TEXT NOT NULL PRIMARY KEY,
@@ -115,7 +134,7 @@ public sealed class WebControlDatabase
         await ExecuteAsync(
             connection,
             """
-            PRAGMA user_version = 1;
+            PRAGMA user_version = 2;
             """,
             cancellationToken);
 
