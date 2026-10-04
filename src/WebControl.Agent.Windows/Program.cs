@@ -108,7 +108,9 @@ builder.Services.AddSingleton<WebControlStateRepository>();
 builder.Services.AddSingleton<WebControlAuditRepository>();
 builder.Services.AddSingleton<DeviceIdentityRepository>();
 builder.Services.AddSingleton<AdminUserRepository>();
+builder.Services.AddSingleton<RecoveryCredentialRepository>();
 builder.Services.AddSingleton<AdminCredentialService>();
+builder.Services.AddSingleton<RecoveryCredentialService>();
 builder.Services.AddSingleton<ServiceControlService>();
 
 //
@@ -291,6 +293,51 @@ app.MapPost(
             });
     })
     .AllowAnonymous();
+app.MapPost(
+    "/api/auth/recovery/generate",
+    async (
+        HttpContext httpContext,
+        AdminUserRepository adminRepository,
+        RecoveryCredentialService recoveryService,
+        CancellationToken cancellationToken
+    ) =>
+    {
+        var username =
+            httpContext.User.Identity?.Name;
+
+        if (string.IsNullOrWhiteSpace(username))
+        {
+            return Results.Unauthorized();
+        }
+
+        var user =
+            await adminRepository.GetByUsernameAsync(
+                username,
+                cancellationToken);
+
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var recoveryCode =
+            await recoveryService.GenerateAsync(
+                user.Id,
+                cancellationToken);
+
+        return Results.Ok(
+            new
+            {
+                username =
+                    user.Username,
+
+                recoveryCode,
+
+                message =
+                    "Save this recovery code. WebControl will not store the plaintext code."
+            });
+    })
+    .RequireAuthorization();
 app.MapPost(
     "/api/auth/logout",
     async (
@@ -709,6 +756,8 @@ internal sealed record LoginRequest(
     string Username,
     string Password,
     bool RememberMe);
+
+
 
 
 

@@ -103,6 +103,22 @@ public sealed class WebControlDatabase
         await ExecuteAsync(
             connection,
             """
+            CREATE TABLE IF NOT EXISTS RecoveryCredential
+            (
+                AdminUserId      INTEGER NOT NULL PRIMARY KEY,
+                RecoveryCodeHash TEXT NOT NULL,
+                CreatedAtUtc     TEXT NOT NULL,
+                UsedAtUtc        TEXT NULL,
+
+                FOREIGN KEY(AdminUserId)
+                    REFERENCES AdminUser(Id)
+                    ON DELETE CASCADE
+            );
+            """,
+            cancellationToken);
+        await ExecuteAsync(
+            connection,
+            """
             CREATE TABLE IF NOT EXISTS ServiceState
             (
                 ServiceId       TEXT NOT NULL PRIMARY KEY,
@@ -152,7 +168,7 @@ public sealed class WebControlDatabase
         await ExecuteAsync(
             connection,
             """
-            PRAGMA user_version = 3;
+            PRAGMA user_version = 4;
             """,
             cancellationToken);
 
@@ -175,4 +191,5 @@ public sealed class WebControlDatabase
             cancellationToken);
     }
 }
+
 
