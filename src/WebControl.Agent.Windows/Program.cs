@@ -1,4 +1,5 @@
-﻿using Microsoft.Data.Sqlite;
+﻿using System.Net;
+using Microsoft.Data.Sqlite;
 using WebControl.Agent.Windows.Configuration;
 using WebControl.Agent.Windows.Persistence;
 using WebControl.Agent.Windows.Services;
@@ -25,6 +26,8 @@ builder.Services.AddSingleton<WebControlDatabase>();
 builder.Services.AddSingleton<WebControlStateRepository>();
 builder.Services.AddSingleton<WebControlAuditRepository>();
 builder.Services.AddSingleton<DeviceIdentityRepository>();
+builder.Services.AddSingleton<AdminUserRepository>();
+builder.Services.AddSingleton<AdminCredentialService>();
 builder.Services.AddSingleton<ServiceControlService>();
 
 //
@@ -128,6 +131,82 @@ app.MapRazorPages()
 // ============================================================
 //
 
+//
+// ============================================================
+// API - CONFIGURACION INICIAL ADMIN
+// Solo localhost y solo mientras no exista administrador.
+// ============================================================
+//
+
+app.MapPost(
+    "/api/setup/admin",
+    async (
+        InitialAdminRequest request,
+        HttpContext httpContext,
+        AdminUserRepository adminRepository,
+        AdminCredentialService credentialService,
+        CancellationToken cancellationToken
+    ) =>
+    {
+        var remoteIp =
+            httpContext.Connection.RemoteIpAddress;
+
+        if (remoteIp is null ||
+            !IPAddress.IsLoopback(remoteIp))
+        {
+            return Results.StatusCode(
+                StatusCodes.Status403Forbidden);
+        }
+
+        if (await adminRepository.HasAnyAsync(
+                cancellationToken))
+        {
+            return Results.Conflict(
+                new
+                {
+                    error =
+                        "WebControl administrator is already configured."
+                });
+        }
+
+        if (string.IsNullOrWhiteSpace(
+                request.Username))
+        {
+            return Results.BadRequest(
+                new
+                {
+                    error =
+                        "Username is required."
+                });
+        }
+
+        try
+        {
+            var userId =
+                await credentialService.CreateAsync(
+                    request.Username,
+                    request.Password,
+                    cancellationToken);
+
+            return Results.Ok(
+                new
+                {
+                    id = userId,
+                    username =
+                        request.Username.Trim(),
+                    configured = true
+                });
+        }
+        catch (ArgumentException exception)
+        {
+            return Results.BadRequest(
+                new
+                {
+                    error =
+                        exception.Message
+                });
+        }
+    });
 //
 // ============================================================
 // API - DISPOSITIVO
@@ -421,3 +500,9 @@ internal sealed record TemporaryGrantRequest(
 
 
 
+
+
+
+internal sealed record InitialAdminRequest(
+    string Username,
+    string Password);

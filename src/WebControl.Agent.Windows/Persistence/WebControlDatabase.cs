@@ -85,6 +85,24 @@ public sealed class WebControlDatabase
         await ExecuteAsync(
             connection,
             """
+            CREATE TABLE IF NOT EXISTS AdminUser
+            (
+                Id              INTEGER NOT NULL
+                                PRIMARY KEY AUTOINCREMENT,
+
+                Username        TEXT NOT NULL
+                                COLLATE NOCASE
+                                UNIQUE,
+
+                PasswordHash    TEXT NOT NULL,
+                CreatedAtUtc    TEXT NOT NULL,
+                UpdatedAtUtc    TEXT NOT NULL
+            );
+            """,
+            cancellationToken);
+        await ExecuteAsync(
+            connection,
+            """
             CREATE TABLE IF NOT EXISTS ServiceState
             (
                 ServiceId       TEXT NOT NULL PRIMARY KEY,
@@ -134,7 +152,7 @@ public sealed class WebControlDatabase
         await ExecuteAsync(
             connection,
             """
-            PRAGMA user_version = 2;
+            PRAGMA user_version = 3;
             """,
             cancellationToken);
 
@@ -157,3 +175,4 @@ public sealed class WebControlDatabase
             cancellationToken);
     }
 }
+
