@@ -23,6 +23,7 @@ builder.Services.Configure<WebControlDbOptions>(
 
 builder.Services.AddSingleton<WebControlDatabase>();
 builder.Services.AddSingleton<WebControlStateRepository>();
+builder.Services.AddSingleton<WebControlAuditRepository>();
 builder.Services.AddSingleton<ServiceControlService>();
 
 //
@@ -36,6 +37,9 @@ builder.Services.AddHostedService<
 
 builder.Services.AddHostedService<
     StateInitializationHostedService>();
+
+builder.Services.AddHostedService<
+    TemporaryGrantExpirationHostedService>();
 
 //
 // ============================================================
@@ -265,6 +269,33 @@ app.MapPost(
 
 //
 // ============================================================
+// API - HISTORIAL
+// ============================================================
+//
+
+app.MapGet(
+    "/api/history",
+    async (
+        int? limit,
+        WebControlAuditRepository auditRepository,
+        CancellationToken cancellationToken
+    ) =>
+    {
+        var requestedLimit =
+            Math.Clamp(
+                limit ?? 50,
+                1,
+                200);
+
+        var events =
+            await auditRepository.GetRecentAsync(
+                requestedLimit,
+                cancellationToken);
+
+        return Results.Ok(events);
+    });
+//
+// ============================================================
 // DIAGNOSTICO SQLITE
 // Temporal durante desarrollo.
 // ============================================================
@@ -337,3 +368,5 @@ app.Run();
 
 internal sealed record TemporaryGrantRequest(
     int Minutes);
+
+

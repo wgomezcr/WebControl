@@ -1,4 +1,5 @@
-﻿using WebControl.Agent.Windows.Persistence;
+﻿using System.Text.Json;
+using WebControl.Agent.Windows.Persistence;
 using WebControl.Core.Models;
 using WebControl.Core.Services;
 
@@ -12,15 +13,18 @@ public sealed class StateInitializationHostedService
 
     private readonly RuleEngine _ruleEngine;
     private readonly WebControlStateRepository _repository;
+    private readonly WebControlAuditRepository _auditRepository;
     private readonly ILogger<StateInitializationHostedService> _logger;
 
     public StateInitializationHostedService(
         RuleEngine ruleEngine,
         WebControlStateRepository repository,
+        WebControlAuditRepository auditRepository,
         ILogger<StateInitializationHostedService> logger)
     {
         _ruleEngine = ruleEngine;
         _repository = repository;
+        _auditRepository = auditRepository;
         _logger = logger;
     }
 
@@ -69,6 +73,20 @@ public sealed class StateInitializationHostedService
                     duration,
                     grant.GrantedAtUtc);
 
+                var details =
+                    JsonSerializer.Serialize(
+                        new
+                        {
+                            expiresAtUtc =
+                                grant.ExpiresAtUtc
+                        });
+
+                await _auditRepository.AddAsync(
+                    YouTubeServiceId,
+                    AuditEventTypes.TemporaryGrantRestored,
+                    details,
+                    cancellationToken);
+
                 _logger.LogInformation(
                     "Restored temporary grant for {ServiceId} until {ExpiresAtUtc}.",
                     YouTubeServiceId,
@@ -79,6 +97,11 @@ public sealed class StateInitializationHostedService
                 await _repository.DeleteTemporaryGrantAsync(
                     YouTubeServiceId,
                     cancellationToken);
+
+                await _auditRepository.AddAsync(
+                    YouTubeServiceId,
+                    AuditEventTypes.TemporaryGrantExpired,
+                    cancellationToken: cancellationToken);
             }
         }
 
