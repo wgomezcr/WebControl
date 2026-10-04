@@ -7,4 +7,7 @@
   <Folder Name="/tests/">
     <Project Path="tests/WebControl.Tests/WebControl.Tests.csproj" />
   </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/WebControl.Proxy.Host/WebControl.Proxy.Host.csproj" />
+  </Folder>
 </Solution>

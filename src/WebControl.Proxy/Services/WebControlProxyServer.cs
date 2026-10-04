@@ -215,6 +215,7 @@ public sealed class WebControlProxyServer
             cancellationToken);
 
         await RelayBidirectionalAsync(
+            request.Host,
             clientStream,
             remoteStream,
             cancellationToken);
@@ -264,12 +265,14 @@ public sealed class WebControlProxyServer
             cancellationToken);
 
         await RelayBidirectionalAsync(
+            request.Host,
             clientStream,
             remoteStream,
             cancellationToken);
     }
 
-    private static async Task RelayBidirectionalAsync(
+    private async Task RelayBidirectionalAsync(
+        string host,
         Stream clientStream,
         Stream remoteStream,
         CancellationToken cancellationToken)
@@ -291,28 +294,73 @@ public sealed class WebControlProxyServer
                 clientStream,
                 relayCts.Token);
 
+        var accessMonitor =
+            MonitorAccessAsync(
+                host,
+                relayCts.Token);
+
         await Task.WhenAny(
             clientToRemote,
-            remoteToClient);
+            remoteToClient,
+            accessMonitor);
 
         relayCts.Cancel();
+
+        //
+        // Cerramos ambos extremos deliberadamente.
+        // Esto evita que Chrome conserve un tunel HTTPS que
+        // fue autorizado antes de cambiar la regla a Blocked.
+        //
+        try
+        {
+            clientStream.Close();
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            remoteStream.Close();
+        }
+        catch
+        {
+        }
 
         try
         {
             await Task.WhenAll(
                 clientToRemote,
-                remoteToClient);
+                remoteToClient,
+                accessMonitor);
         }
-        catch (
-            OperationCanceledException)
+        catch (OperationCanceledException)
         {
         }
-        catch (
-            IOException)
+        catch (IOException)
+        {
+        }
+        catch (ObjectDisposedException)
         {
         }
     }
 
+    private async Task MonitorAccessAsync(
+        string host,
+        CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            await Task.Delay(
+                TimeSpan.FromMilliseconds(250),
+                cancellationToken);
+
+            if (_ruleEngine.IsBlocked(host))
+            {
+                return;
+            }
+        }
+    }
     private static async Task CopyUntilClosedAsync(
         Stream source,
         Stream destination,
@@ -447,3 +495,4 @@ public sealed class WebControlProxyServer
             cancellationToken);
     }
 }
+
