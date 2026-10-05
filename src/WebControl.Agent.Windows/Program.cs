@@ -14,6 +14,12 @@ using WebControl.Proxy.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Host.UseWindowsService(
+    options =>
+    {
+        options.ServiceName = "WCNetworkAgent";
+    });
+
 builder.Services.AddRazorPages();
 builder.Services
     .AddAuthentication(
@@ -898,6 +904,7 @@ internal sealed record RecoveryResetRequest(
     string Username,
     string RecoveryCode,
     string NewPassword);
+
 
 
 
