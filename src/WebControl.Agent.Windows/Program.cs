@@ -242,6 +242,20 @@ builder.Services.AddSingleton<
 builder.Services.AddHostedService<
     WebControlProxyHostedService>();
 
+if (builder.Environment.IsDevelopment())
+{
+    builder.WebHost.ConfigureKestrel(
+        options =>
+        {
+            options.ListenLocalhost(
+                7241,
+                listenOptions =>
+                    listenOptions.UseHttps());
+
+            options.ListenAnyIP(
+                8765);
+        });
+}
 var app = builder.Build();
 
 if (!app.Environment.IsDevelopment())
@@ -250,7 +264,10 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-app.UseHttpsRedirection();
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
@@ -881,4 +898,8 @@ internal sealed record RecoveryResetRequest(
     string Username,
     string RecoveryCode,
     string NewPassword);
+
+
+
+
 
