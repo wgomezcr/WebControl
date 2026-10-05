@@ -248,31 +248,33 @@ builder.Services.AddSingleton<
 builder.Services.AddHostedService<
     WebControlProxyHostedService>();
 
-if (builder.Environment.IsDevelopment())
-{
-    builder.WebHost.ConfigureKestrel(
-        options =>
+builder.WebHost.ConfigureKestrel(
+    options =>
+    {
+        //
+        // Panel/API de administracion WebControl.
+        // Disponible en la LAN. El firewall limita el acceso
+        // a redes privadas y LocalSubnet.
+        //
+        options.ListenAnyIP(
+            8765);
+
+        //
+        // HTTPS de Visual Studio solamente para desarrollo.
+        //
+        if (builder.Environment.IsDevelopment())
         {
             options.ListenLocalhost(
                 7241,
                 listenOptions =>
                     listenOptions.UseHttps());
-
-            options.ListenAnyIP(
-                8765);
-        });
-}
+        }
+    });
 var app = builder.Build();
 
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error");
-    app.UseHsts();
-}
-
-if (!app.Environment.IsDevelopment())
-{
-    app.UseHttpsRedirection();
 }
 app.UseRouting();
 app.UseAuthentication();
@@ -904,6 +906,7 @@ internal sealed record RecoveryResetRequest(
     string Username,
     string RecoveryCode,
     string NewPassword);
+
 
 
 
